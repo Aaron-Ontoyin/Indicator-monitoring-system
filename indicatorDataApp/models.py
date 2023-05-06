@@ -1,19 +1,19 @@
 from django.db import models
 from django.db.models import Sum, Q
-from django_countries.fields import CountryField
+from statistics import mean, median
+from abc import ABC, abstractmethod
+import pycountry
 
 
 # Choice Fiels
 class MeasurementUnitChoice(models.TextChoices):
     """The unit of measurement for an indicator"""
-    
-    PERCENTAGE = 'Perc', 'Percentage'
+    PERCENTAGE = 'Per', 'Percentage'
     NUMBER = 'Num', 'Number'
 
 
 class AggregationLevelChoice(models.TextChoices):
     """The aggregation level for an indicator"""
-
     DISTRICT = 'Dis', 'District'
     REGIONAL = 'Reg', 'Regional'
     NATIONAL = 'Nat', 'National'        
@@ -21,7 +21,6 @@ class AggregationLevelChoice(models.TextChoices):
 
 class MeasurementLevelChoice(models.TextChoices):
     """Choices for level of measurement"""
-
     INPUT = 'Inp', 'Input'
     OUTPUT = 'Outp', 'Output'
     OUTCOME = 'Outc', 'Outcome'
@@ -30,9 +29,16 @@ class MeasurementLevelChoice(models.TextChoices):
 
 class ValueTypeChoice(models.TextChoices):
     """Choices for value type"""
-
     COMPUTED = 'C', 'Computed'
     INPUTTED = 'I', 'Inputted'
+
+
+class CalFormatChoice(models.TextChoices):
+    """Choices for cal format"""
+    AVERAGE = 'Ave', 'Average'
+    NET = 'Net', 'Net'
+    MEAN = 'Mean', 'Mean'
+    MEDIAN = 'Mdn', 'Median'
 
 
 #Models
@@ -40,11 +46,23 @@ class Value(models.Model):
     """The actual value a Variable"""
     period = models.DateField(auto_now_add=True)
     inputted_value = models.DecimalField(decimal_places=2, max_digits=9, default=None)
-    
+
+    computing_funcs = {
+        CalFormatChoice.AVERAGE: lambda x: sum(x) / len(x),
+        CalFormatChoice.NET: sum,
+        CalFormatChoice.MEAN: mean,
+        CalFormatChoice.MEDIAN: median,
+    }
+
     # Not explicitely made abstract but they are abstract
-    value_type = None
+    value_type = None    
     def computed_values(self):
         pass
+    
+    def compute(self, values, compute_format):
+        """Computes values base on compute format"""
+        computing_func = self.computing_funcs.get(compute_format)
+        return computing_func(values)
 
     @property
     def value(self):
@@ -68,10 +86,10 @@ class NationalVarValue(Value):
             Q(region__country=self.variable.country) &
             Q(country_var__indicator_var=self.variable.indicator_var)
         )
-        computed_value = None
-        #TODO
-        #compute value base on average, sum, etc
-        return computed_value
+        regional_var_values = RegionalVarValue.objects.filter(variable__in=regional_vars)
+        all_values = regional_var_values.values_list('value_value', flat=True)
+        
+        return self.compute(all_values, self.variable.indicator_var.compute_format)
 
 class RegionalVarValue(Value):
     """The value at a period for a regional variable"""
@@ -83,16 +101,16 @@ class RegionalVarValue(Value):
         return self.variable.national_var.indicator_var.value_type
     
     def computed_values(self):
-        """Returns the computted value instead of inputted value"""
+        """Returns the computed value instead of inputted value"""
         indicator_variable = self.variable.national_var.indicator_var
         district_vars = DistrictIndicatorVariable.objects.filter(
             Q(district__region=self.variable.region) &
             Q(regional_var__national_var__indicator_var=indicator_variable)
         )
-        computed_value = None
-        #TODO
-        #compute value base on average, sum, etc
-        return computed_value
+        district_var_values = DistrictVarValue.objects.filter(variable__in=district_vars)
+        all_values = district_var_values.value_list('value__value', flat=True) 
+        
+        return self.compute(all_values, self.variable.national_var.indicator_var.compute_format)
 
 
 class DistrictVarValue(Value):
@@ -102,7 +120,7 @@ class DistrictVarValue(Value):
                                  on_delete=models.CASCADE)
     
     def computed_values(self):
-        """Region has no computted values, so returns inputted value"""
+        """Region has no computed values, so returns inputted value"""
         return self.inputted_value
 
     @property
@@ -111,48 +129,67 @@ class DistrictVarValue(Value):
 
 
 class IndicatorValue(models.Model):
-    """The actual value of an indicator"""
+    """The actual value of an indicator at a particular period"""
     period = models.DateField(auto_now_add=True)
     indicator = models.ForeignKey('Indicator', related_name='values', on_delete=models.CASCADE)
 
     @property
     def value(self):
-        pass
+        #NOTE: should be a signal to calulate once and for all
+        values = None # Should be values in this period match 
+        if not self.indicator.computing_formula:
+            # Default calculation is the sum of all variables
+            return values.aggregate(models.Sum('value'))['value__sum']
+        else:
+            # Evaluate the formula
+            formula = self.indicator.value_calculation.replace('^', '**')
+            vars_dict = {v.code: v.value for v in variables.all()}
+            return eval(formula, vars_dict)
 
 
 class Country(models.Model):
     """A normal country"""
 
-    name = models.CharField(max_length=60)
-    code = models.CharField(max_length=3)
+    name = models.CharField(max_length=60, unique=True)
+    code = models.CharField(max_length=2, unique=True)
 
+    class Meta:
+        verbose_name_plural = 'Countries'
+
+    def __str__(self) -> str:
+        return self.name + " (" + self.code + ")"
 
 class Region(models.Model):
     """Region of a country"""
 
-    name = models.CharField(max_length=50)
-    code = models.CharField(max_length=3)
+    name = models.CharField(max_length=60)
+    code = models.CharField(max_length=10, unique=True)
     country = models.ForeignKey(Country, related_name='regions', on_delete=models.CASCADE)
 
+    def __str__(self):
+        return self.name + " " + self.country.code
 
 class District(models.Model):
     """Destrict of a Region"""
 
     name = models.CharField(max_length=80)
-    code = models.CharField(max_length=7)
+    code = models.CharField(max_length=10, unique=True)
     region = models.ForeignKey(Region, related_name='districts', on_delete=models.CASCADE)
 
 
 class IndicatorVariable(models.Model):
-    """Indicator variable"""
+    """Base Indicator variable"""
 
     name = models.CharField(max_length=250)
     code = models.CharField(max_length=5)
     country = models.ForeignKey(Country, related_name='variables', on_delete=models.CASCADE) 
-    value_type = models.CharField(max_length=1, choices=ValueTypeChoice.choices)
-    level = models.CharField(max_length=3,
+    value_type = models.CharField(max_length=10, choices=ValueTypeChoice.choices)
+    level = models.CharField(max_length=10,
                              choices=AggregationLevelChoice.choices,
                              default=AggregationLevelChoice.NATIONAL)
+    compute_format = models.CharField(max_length=10,
+                                        choices=CalFormatChoice.choices,
+                                        default=CalFormatChoice.NET)
 
     def get_all_district_vars(self):
         district_vars = DistrictIndicatorVariable.objects.filter(
@@ -193,6 +230,30 @@ class IndicatorVariable(models.Model):
         
         raise ValueError("Target must be a Region or District")
 
+    def get_create_national_var(self):
+        NationalIndicatorVariable.objects.get_or_create(
+            indicator_var=self,
+            defaults={'name': self.country.code + ' ' + self.name}
+        )
+
+    def delete_national_var(self):
+        self.national_var.delete()
+
+    def get_create_regional_vars(self):
+        self.national_var.get_create_regional_vars()
+
+    def delete_regional_vars(self):
+        self.national_var.delete_regional_vars()
+
+    def create_district_vars(self):
+        for var in self.national_var.regional_vars.all():
+            var.create_district_vars()
+
+    def delete_district_vars(self):
+        for var in self.national_var.regional_vars.all():
+            var.delete_district_vars()
+            
+
     def get(self, target=None, get_net_value=True, get_all_districts=False):
         """
         Get the value of a country, region or district indicator variable(s).
@@ -227,48 +288,9 @@ class IndicatorVariable(models.Model):
             return self.get_district_var(target)
         
         raise ValueError("Target must be a Region, Country, District or None")
-    
-    def create_vars(self):
-        """
-        Create indicator variables for a country, region and/or district
-        Eg. if level is Nat and country is Ghana, creates the var for all
-        regions in Ghana and Ghana
-        Input:
-            level -> 'c' for country, 'r' for regional and 'd' for district
-            country -> country to create vars for
-        """
-        if not self.national_var:
-            NationalIndicatorVariable.objects.create(
-                name = self.name + '_' + self.country.code,
-                indicator_var = self,
-            )
-
-        if (self.level is AggregationLevelChoice.REGIONAL or\
-            self.level is AggregationLevelChoice.DISTRICT):
-
-            for region in self.country.regions.all():
-                if not self.get_regional_var(region=region):
-                    RegionalIndicatorVariable.objects.create(
-                        name = self.name + '_' + self.country.code + '_' + region.code,
-                        national_var = self.national_var,
-                    )
         
-        if self.level is AggregationLevelChoice.DISTRICT:
-            for district in District.objects.filter(region__country=self.country):
-                if not self.get_district_var(district=district):
-                    regional_var = RegionalIndicatorVariable.objects.get(
-                        Q(region=district.region) & Q(national_var=self.national_var)
-                    )
-                    DistrictIndicatorVariable.objects.create(
-                        name = self.name + '_' + self.country.code + '_' + 
-                                district.region.code + '_' + district.code,
-                        regional_var = regional_var,
-                    )
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        self.create_vars()
-        
+    def __str__(self):
+        return self.country.code + " " + self.name + " | " + self.code
 
 class NationalIndicatorVariable(models.Model):
     """
@@ -278,22 +300,29 @@ class NationalIndicatorVariable(models.Model):
     """
 
     name = models.CharField(max_length=150)
-    indicator_var = models.ForeignKey(IndicatorVariable,
+    indicator_var = models.OneToOneField(IndicatorVariable,
                                       related_name='national_var',
                                       on_delete=models.CASCADE)
     # Linked to value_models on a ForeignKey
-
-    def compute_value(self):
-        """Get values computted regional values of this country timely"""
-        # For each value in the country, 
-        # NOTE: maybe some vars could depend on average. Would work on that
-        # if need be by puting total_type in parent var
-        return self.regional_vars.aggregate(Sum('value'))['value__sum'] or 0
     
     @property
     def values(self):
         return self.value_models.all()
+    
+    def get_create_regional_vars(self):
+        for region in self.indicator_var.country.regions.all():
+            RegionalIndicatorVariable.objects.get_or_create(
+                national_var = self,
+                region=region,
+                name = self.name + ' ' + region.code
+            )
+    
+    def delete_regional_vars(self):
+        RegionalIndicatorVariable.objects.filter(national_var=self).delete()
+        
 
+    def __str__(self):
+        return self.name
 
 
 class RegionalIndicatorVariable(models.Model):
@@ -308,18 +337,32 @@ class RegionalIndicatorVariable(models.Model):
     national_var = models.ForeignKey(NationalIndicatorVariable,
                                     related_name='regional_vars',
                                     on_delete=models.CASCADE)
-    inputted_value = models.DecimalField(max_digits=9, decimal_places=2, default=None)
-
-    def computed_value(self):
-        """Get sum of all values of districts in this region"""
-        # NOTE: maybe some vars could depend on average. Would work on that
-        # if need be by puting total_type in parent var
-        return self.district_vars.aggregate(Sum('value'))['value__sum'] or 0
+    # Linked to value_models by ForeignKey
     
     @property
     def values(self):
         return self.variables.all()
 
+    
+    def get_create_district_vars(self):
+        districts = District.objects.filter(
+            region__country=self.national_var.indicator_var.country
+        )
+        for district in districts:
+            regional_var = RegionalIndicatorVariable.objects.get(
+                Q(region=district.region) & Q(national_var=self.national_var)
+            )
+            DistrictIndicatorVariable.objects.get_or_create(
+                regional_var = regional_var,
+                district = district,
+                name = self.name + '_' + self.name,
+            )
+    
+    def delete_district_vars(self):
+        DistrictIndicatorVariable.objects.filter(regional_var=self).delete()
+
+    def __str__(self):
+        return self.name
 
 class DistrictIndicatorVariable(models.Model):
     """District level indicator variable"""
@@ -328,8 +371,8 @@ class DistrictIndicatorVariable(models.Model):
     regional_var = models.ForeignKey(RegionalIndicatorVariable,
                                      related_name='district_vars',
                                      on_delete=models.CASCADE)
-    value = models.DecimalField(max_digits=9, decimal_places=2, default=None)
-
+    # Linked to value_models by ForeignKey
+    
     @property
     def values(self):
         return self.variables.all()
@@ -340,17 +383,19 @@ class Indicator(models.Model):
     
     name = models.CharField(max_length=250)
     code = models.CharField(max_length=150)
-    definition = models.TextField()
-    measurement_unit = models.CharField(max_length=7, choices=MeasurementUnitChoice.choices)
-    aggregation_level = models.CharField(max_length=7, choices=AggregationLevelChoice.choices)
-    reporting_period = models.DateField(auto_now=True)
-    responsible_party = models.CharField(max_length=500)
-    level = models.CharField(max_length=7, choices=MeasurementLevelChoice.choices)
-    data_source = models.TextField()
+    definition = models.TextField(null=True, blank=True)
     country = models.ForeignKey(Country, related_name='indicators', on_delete=models.CASCADE)
+    responsible_party = models.CharField(max_length=500, null=True, blank=True)
+    measurement_unit = models.CharField(max_length=10, choices=MeasurementUnitChoice.choices)
+    reporting_period = models.DateField(auto_now=True)
+    measurement_level = models.CharField(max_length=10, choices=MeasurementLevelChoice.choices, null=True)
+    data_source = models.TextField(null=True, blank=True)
+    level = models.CharField(max_length=10, choices=AggregationLevelChoice.choices, null=True)
     variables = models.ManyToManyField(IndicatorVariable,
                                        related_name='indicators',
                                        blank=True)
+    computing_formula = models.CharField(max_length=250, blank=True, null=True,
+                                         help_text="Not useful if only one variable is selected. Leave blank to use addtion of all varibles.")
 
     # def depending_vars(self):
     #     """Returns a list of variables that are used for this indicator"""
@@ -371,16 +416,5 @@ class Indicator(models.Model):
         except ValueError:
             return None        
 
-    def save(self, *args, **kwargs):
-        """Assign indicator variables based on self.level"""
-        super().save(*args, **kwargs)
-
-        # If indicator_vars exist for the level of the country as selected,
-        # link them else create them
-        for var in self.variables:
-            if self.level == 'Dis' and var.level in ['Nat', 'Reg']:
-                var.level = self.level
-                var.save()
-            if self.level == 'Reg' and var.level == 'Nat':
-                var.level = self.level
-                var.save()
+    def __str__(self):
+        return self.name + ' ' + self.country.code 

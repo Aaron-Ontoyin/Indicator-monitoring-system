@@ -1,0 +1,16 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    
+    {% if creating %}    
+    <script>
+        computingFormulaDiv = document.getElementsByClassName('field-computing_formula')[0];
+        computingFormulaDiv.remove()
+        variablesDiv = document.getElementsByClassName('field-variables')[0];
+        variablesDiv.remove()
+        const button = document.getElementsByName('_continue');
+        button[0].value = 'Choose Variables';
+    </script>
+    {% endif %}
+{% endblock %}
