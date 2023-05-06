@@ -9,6 +9,7 @@ from .models import Country, Region, District
 from .models import Indicator, IndicatorVariable, NationalIndicatorVariable
 from .models import  RegionalIndicatorVariable, DistrictIndicatorVariable
 from .models import Value, AggregationLevelChoice
+from .models import NationalVarValue, RegionalVarValue, DistrictVarValue
 from .forms import CountryForm
 
 
@@ -78,3 +79,6 @@ admin.site.register(IndicatorVariable, IndicatorVariableAdmin)
 admin.site.register(NationalIndicatorVariable)
 admin.site.register(RegionalIndicatorVariable)
 admin.site.register(DistrictIndicatorVariable)
+admin.site.register(NationalVarValue)
+admin.site.register(RegionalVarValue)
+admin.site.register(DistrictVarValue)
