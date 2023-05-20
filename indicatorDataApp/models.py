@@ -1,8 +1,12 @@
 from django.db import models
-from django.db.models import Sum, Q
+from django.db.models import Sum, Min, Max, Q
 from statistics import mean, median
 from abc import ABC, abstractmethod
 import pycountry
+
+from dateutil.rrule import rrule, YEARLY
+from datetime import datetime
+
 
 
 # Choice Fiels
@@ -10,6 +14,17 @@ class MeasurementUnitChoice(models.TextChoices):
     """The unit of measurement for an indicator"""
     PERCENTAGE = 'Per', 'Percentage'
     NUMBER = 'Num', 'Number'
+
+
+class MeasurementFreqChoice(models.TextChoices):
+    """The frequency of measurement for an indicator"""
+    BIENNIAL = 'Bien', 'Biennial [2]'
+    YEARLY = 'Yr', 'Yearly [1]'
+    BIANNUALLY = 'Bia', 'Biannually [1/2]'
+    QUARTERLY = 'Qr', 'Quarterly [1/4]'
+    MONTHLY = 'Mt', 'Monthly [1/12]'
+    WEEKLY = 'Wk', 'Weekly [1/52]'
+    DAILY = 'Dy', 'Daily [1/365.5]'
 
 
 class AggregationLevelChoice(models.TextChoices):
@@ -54,6 +69,7 @@ class Country(models.Model):
     def __str__(self) -> str:
         return self.name + " (" + self.code + ")"
 
+
 class Region(models.Model):
     """Region of a country"""
 
@@ -63,6 +79,7 @@ class Region(models.Model):
 
     def __str__(self):
         return self.name + " " + self.country.code
+
 
 class District(models.Model):
     """Destrict of a Region"""
@@ -121,6 +138,7 @@ class NationalVarValue(Value):
         all_values = regional_var_values.values_list('value_value', flat=True)
         
         return self.compute(all_values, self.variable.indicator_var.compute_format)
+
 
 class RegionalVarValue(Value):
     """The value at a period for a regional variable"""
@@ -238,10 +256,10 @@ class IndicatorVariable(models.Model):
 
     def get(self, target=None, get_net_value=True, get_all_districts=False):
         """
-        Get the value of a country, region or district indicator variable(s).
-        Call without any input to get the total national value
-        Call with get_net_value == False to get all regional values of the var
-        Call with get_all_districts == True to get all district values of the var
+        Get the var of a country, region or district indicator variable(s).
+        Call without any input to get the national var
+        Call with get_net_value == False to get all regional vars of the var
+        Call with get_all_districts == True to get all district vars of the var
         Input
             target -> the target region or district of the indicator variable,
                     leave blank for this country as target.
@@ -274,6 +292,7 @@ class IndicatorVariable(models.Model):
     def __str__(self):
         return self.country.code + " " + self.name + " | " + self.code
 
+
 class NationalIndicatorVariable(models.Model):
     """
     National level indicator variable.
@@ -301,7 +320,11 @@ class NationalIndicatorVariable(models.Model):
     
     def delete_regional_vars(self):
         RegionalIndicatorVariable.objects.filter(national_var=self).delete()
-        
+
+    def get_value_at(self, date):
+        all_vars_at_date = self.value_models.filter(pariod__gte=date)
+        least_var = all_vars_at_date.order_by('period').first()
+        return least_var.value
 
     def __str__(self):
         return self.name
@@ -323,9 +346,13 @@ class RegionalIndicatorVariable(models.Model):
     
     @property
     def values(self):
-        return self.variables.all()
+        return self.value_models.all()
 
-    
+    def get_value_at(self, date):
+        all_vars_at_date = self.value_models.filter(pariod__gte=date)
+        least_var = all_vars_at_date.order_by('period').first()
+        return least_var.value
+
     def get_create_district_vars(self):
         districts = District.objects.filter(
             region__country=self.national_var.indicator_var.country
@@ -346,6 +373,7 @@ class RegionalIndicatorVariable(models.Model):
     def __str__(self):
         return self.name
 
+
 class DistrictIndicatorVariable(models.Model):
     """District level indicator variable"""
 
@@ -353,11 +381,15 @@ class DistrictIndicatorVariable(models.Model):
     regional_var = models.ForeignKey(RegionalIndicatorVariable,
                                      related_name='district_vars',
                                      on_delete=models.CASCADE)
-    # Linked to value_models by ForeignKey
-    
+
+    def get_value_at(self, date):
+        all_vars_at_date = self.value_models.filter(pariod__gte=date)
+        least_var = all_vars_at_date.order_by('period').first()
+        return least_var.value
+
     @property
     def values(self):
-        return self.variables.all()
+        return self.value_models.all()
 
 
 class IndicatorValue(models.Model):
@@ -366,12 +398,12 @@ class IndicatorValue(models.Model):
     indicator = models.ForeignKey('Indicator', related_name='values', on_delete=models.CASCADE)
     value = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True)
 
-    @staticmethod
-    def create(indicator):
-        """Creates a new indicator value for the current period"""
-        IndicatorValue.objects.create(
-            indicator=indicator
-        )
+    # @staticmethod
+    # def create(indicator):
+    #     """Creates a new indicator value for the current period"""
+    #     IndicatorValue.objects.create(
+    #         indicator=indicator
+    #     )
 
 
 class Indicator(models.Model):
@@ -383,7 +415,7 @@ class Indicator(models.Model):
     country = models.ForeignKey(Country, related_name='indicators', on_delete=models.CASCADE)
     responsible_party = models.CharField(max_length=500, null=True, blank=True)
     measurement_unit = models.CharField(max_length=10, choices=MeasurementUnitChoice.choices)
-    reporting_period = models.DateField(auto_now=True)
+    measurement_freq = models.CharField(max_length=10, choices=MeasurementFreqChoice.choices, null=True)
     measurement_level = models.CharField(max_length=10, choices=MeasurementLevelChoice.choices, null=True)
     data_source = models.TextField(null=True, blank=True)
     level = models.CharField(max_length=10, choices=AggregationLevelChoice.choices, null=True)
@@ -394,20 +426,94 @@ class Indicator(models.Model):
                                          help_text="Not useful if only one variable is selected.\
                                             Leave blank to use addtion of all varibles.")
 
-    def get_value(self, date=None):
+    def value_at(self, date):
         """
-        Returns indicator values or value if date is not None
-        Input:
-            date -> If provided, returns indicator value at that date if
-                found else None. If date is None, returns all values
+        Returns the value of this indicator at the given date
+        If indicator is not national, returns the value at each division for this date
         """
-        if date is None:
-            return self.values.all()
-        
-        try:
-            return self.values.get(date=date)
-        except ValueError:
-            return None        
+        vars_dict = self.get_vars_dict()
+        computed_vals = []
 
+        sorted_vars_dict = {} # place and it's variables
+        for k, v in vars_dict.items():
+            if v not in sorted_vars_dict:
+                sorted_vars_dict[v] = {k: v}
+            else:
+                sorted_vars_dict[v][k] = v
+        
+        for place, places_vars in sorted_vars_dict:
+            value = eval(self.computing_formula.replace('^', '**'),
+                            {code: var.get_value_at(date) for code, var in places_vars})
+            computed_vals.append({place: value})
+
+        return computed_vals
+        
+
+    def get_vars_dict(self):
+        """Returns a dict of indicator variables and their codes according to self.level"""
+        if self.level == AggregationLevelChoice.NATIONAL:
+            vars_dict = {
+                v.code: v.get(target=self.country, get_net_value=True)
+                for v in self.variables
+            }
+        
+        if self.level == AggregationLevelChoice.REGIONAL:
+            vars_dict = {
+                v.code: v.get(target=self.country, get_net_value=False)
+                for v in self.variables
+            }
+
+        if self.level == AggregationLevelChoice.DISTRICT:
+            vars_dict = {
+                v.code: v.get(all_district_vars=True)
+                for v in self.variables
+            }
+
+        return vars_dict
+
+    @property
+    def all_vars_values(self):
+        all_values = []
+        for var in self.get_vars_dict.values():
+            for value in var.value_models.all():
+                all_values.append(value)
+        return all_values
+
+    def get_min_date(self):
+        min_date_per_value = []
+        for var in self.all_vars_values:
+            min_date_per_value.append((var.value_models.all().aggregate(Min('period')))['period__min'])
+
+        return min(min_date_per_value)
+
+    def get_max_date(self):
+        max_date_per_value = []
+        for var in self.all_vars_values:
+            max_date_per_value.append((var.value_models.all().aggregate(Max('period')))['period__max'])
+        
+        return max(max_date_per_value)
+
+    def divide_dates(self):
+        freg_string = self.get_measurement_freq_label.split('[')[1][:-1]
+        record_per_yr = eval(freg_string)
+
+        intervals = list(
+            rrule(YEARLY, 
+                  interval=record_per_yr,
+                  dtstart=self.get_min_date(),
+                  until=self.get_max_date()
+                  )
+        )
+        return intervals
+
+    def data(self):
+        """Returns indicator values in pd dataframe format"""
+        import pandas as pd
+
+        dates = self.divide_dates()
+        values = {date: self.value_at(date) for date in dates}
+
+        return pd.DataFrame(values)
+    
     def __str__(self):
         return self.name + ' ' + self.country.code 

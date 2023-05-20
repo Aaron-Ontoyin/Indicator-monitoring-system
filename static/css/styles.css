@@ -1,0 +1,160 @@
+* {
+    -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+            box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+nav {
+    min-height: 6%;
+}
+
+h2 {
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+}
+
+.data-input-main-container {
+    position: relative;
+    height: 94%;
+}
+
+.data-input-sidebar {
+    position: absolute;
+    top: 57px;
+    left: 0;
+    bottom: 0;
+    width: 30%;
+    border-right: 3px inset rgba(178, 178, 206, 0.716);
+    background-color: rgba(214, 231, 247, 0.947);
+    overflow-y: scroll;
+}
+
+.data-input-workarea-outter {
+    position: absolute;
+    top: 57px;
+    right: 0;
+    bottom: 0;
+    width: 70%;
+}
+
+
+@media screen and (max-width: 600px) {
+    .data-input-sidebar {
+        margin-top: 50px;
+        position: static;
+        width: 100%;
+        max-height: 40%;
+    }
+
+    .data-input-workarea-outter {
+        position: static;
+        width: 100%;
+        height: 60%;
+    }
+    
+}
+
+.data-input-workarea-inner {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    overflow-y: scroll;
+    background-color: rgba(233, 244, 253, 0.676);
+}
+
+.input-data-title {
+    position: absolute;
+    top: 0;
+    right: 0;
+    text-align: center;
+    padding-top: 10px;
+    width: 100%;
+}
+
+
+.input-data-entry-container {
+    position: absolute;
+    top: 80px;
+    bottom: 60px;
+    right: 0;
+    left: 0;
+    text-align: center;
+}
+
+@media screen and (max-width: 600px) {
+    .input-data-form-container {
+        top: 4rem;
+    }        
+}
+
+.input-data-variable-name {
+    width: 100%;
+    text-align: left;
+    height: 8%;
+    padding: 0.5em;
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    color: rgb(59, 59, 125);
+    text-decoration: underline;
+}
+
+.existing-data-container {
+    margin-top: 2em;
+    display: flex;
+    top: 70px;
+    width: 90%;
+    overflow-x: scroll;
+    border-radius: 3px;background-color: rgba(205, 217, 230, 0.265);;
+    border: 2px solid rgba(178, 178, 206, 0.716);
+}
+
+.existing-data-card {
+    border: 1px solid rgba(178, 178, 206, 0.541);
+    height: 100%;
+    padding: 0.4em;
+    border-radius: 2px;
+}
+
+.existing-data-value {
+    background-color: rgba(214, 231, 247, 0.38);;
+}
+
+.existing-data-date {
+    background-color: rgba(214, 231, 247, 0.745);
+}
+
+.input-data-form-container {
+    margin-top: 3em;
+    text-align: center;
+    width: 100%;
+}
+
+.input-data-form-container form h5 {
+    text-align: left;
+    padding-left: 5em;
+}
+
+.data-input {
+    display: inline;
+}
+
+.data-input div {
+    margin: 2em;
+}
+
+.data-input-submit-container {
+    margin-top: 2rem;
+    text-align: right;
+    padding-right: 8rem;
+}
+
+footer {
+    position: fixed;
+    bottom: 0;
+    background-color: #0b0328;
+    width: 100%;
+    height: 6%;
+}

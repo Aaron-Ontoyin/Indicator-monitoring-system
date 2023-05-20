@@ -19,39 +19,39 @@ def create_regions(sender, instance, created, **kwargs):
             )
 
 
-@receiver(post_save, sender=IndicatorValue)
-def calculate_actual_value(sender, instance, created, **kwargs):
-    indicator = instance.indicator
-    indicator_variables = indicator.variables.all()
-    formula = indicator.value_calculation.replace('^', '**')
+# @receiver(post_save, sender=IndicatorValue)
+# def calculate_actual_indicator_alue(sender, instance, created, **kwargs):
+#     indicator = instance.indicator
+#     indicator_variables = indicator.variables.all()
+#     formula = indicator.value_calculation.replace('^', '**')
     
-    if indicator.level == AggregationLevelChoice.NATIONAL:
-        vars_dict = {var.code: var.get() for var in indicator_variables}
+#     if indicator.level == AggregationLevelChoice.NATIONAL:
+#         vars_dict = {var.code: var.get() for var in indicator_variables}
     
-    if indicator.level == AggregationLevelChoice.REGIONAL:
-        # It has to have multiple values, thus for each region
-        vars_dict = {var.code: var.get() for var in indicator_variables}
-    #...
-
-    
-    return eval(formula, vars_dict)
+#     if indicator.level == AggregationLevelChoice.REGIONAL:
+#         # It has to have multiple values, thus for each region
+#         vars_dict = {var.code: var.get() for var in indicator_variables}
+#     #...
 
 
-    if indicator.level == AggregationLevelChoice.REGIONAL:
-        actual_variables = RegionalIndicatorVariable.objects.filter(indicator=indicator)
+    # return eval(formula, vars_dict)
 
-    if indicator.level == AggregationLevelChoice.DISTRICT:
-        actual_variables = DistrictIndicatorVariable.objects.filter(indicator=indicator)
 
-    values = None # Should be values in this period match 
-    if not self.indicator.computing_formula:
-        # Default calculation is the sum of all variables
-        return values.aggregate(models.Sum('value'))['value__sum']
-    else:
-        # Evaluate the formula
-        formula = self.indicator.value_calculation.replace('^', '**')
-        vars_dict = {v.code: v.value for v in variables.all()}
-        return eval(formula, vars_dict)
+    # if indicator.level == AggregationLevelChoice.REGIONAL:
+    #     actual_variables = RegionalIndicatorVariable.objects.filter(indicator=indicator)
+
+    # if indicator.level == AggregationLevelChoice.DISTRICT:
+    #     actual_variables = DistrictIndicatorVariable.objects.filter(indicator=indicator)
+
+    # values = None # Should be values in this period match 
+    # if not self.indicator.computing_formula:
+    #     # Default calculation is the sum of all variables
+    #     return values.aggregate(models.Sum('value'))['value__sum']
+    # else:
+    #     # Evaluate the formula
+    #     formula = self.indicator.value_calculation.replace('^', '**')
+    #     vars_dict = {v.code: v.value for v in variables.all()}
+    #     return eval(formula, vars_dict)
 
 
 

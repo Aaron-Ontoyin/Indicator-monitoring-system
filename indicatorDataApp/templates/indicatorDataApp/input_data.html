@@ -1,0 +1,102 @@
+{% extends 'main.html' %}
+
+{% block body-content %}
+<div class="data-input-main-container">
+    
+    <div class="col-12 col-md-4 pt-3 data-input-sidebar";>
+
+        <input class="form-control" id="search-input" type="text" placeholder="Search variables...">
+        <br>
+        <ul class="list-group" id="variables">
+            <li class="list-group-item">First item</li>
+            <li class="list-group-item">Second item</li>
+            <li class="list-group-item">Third item</li>
+            <li class="list-group-item">Fourth</li>
+        </ul>
+
+    </div>
+
+    <div class="data-input-workarea-outter">
+        <div class="data-input-workarea-inner">
+
+            <div class="input-data-title">
+                <h3>Indicator Variable Data Input</h3>
+            </div>
+            
+            <div class="input-data-entry-container">
+           
+                    <div class="input-data-variable-name">
+                        <h5>Population: Upper East Region, Gh</h5>
+                    </div>
+
+                    <div class="existing-data-container">
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                        <div class="existing-data-card m-1 text-center">
+                            <a href="" style="color: rgb(53, 56, 74);">
+                                <div class="existing-data-date">25/04/2023</div>
+                                <div class="existing-data-value">100.00</div>
+                            </a>
+                        </div>
+                    </div>
+        
+                    <div class="input-data-form-container">
+                        <form action="">
+                            <h5>Input new Value...</h5>
+                            <div class="data-input">
+                                <div class="data-input-variable-name">
+                                    <label for="var_value">Value</label> <br>
+                                    <input type="number" name="var_value" id="">    
+                                </div>
+                                <div class="data-input-date">
+                                    <label for="var_value_date">Date</label> <br>
+                                    <input type="date" name="var_value_date">
+                                </div>
+                            </div>
+                            <div class="data-input-submit-container">
+                                <button type="submit" class="btn btn-outline-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
+
+            </div>
+            
+        </div>
+    </div>
+
+</div>
+{% endblock body-content %}
