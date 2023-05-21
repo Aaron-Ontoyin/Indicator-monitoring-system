@@ -1,5 +1,7 @@
 {% extends 'main.html' %}
 
+{% load custom_filters %}
+
 {% block body-content %}
 <div class="data-input-main-container">
     
@@ -8,10 +10,13 @@
         <input class="form-control" id="search-input" type="text" placeholder="Search variables...">
         <br>
         <ul class="list-group" id="variables">
-            <li class="list-group-item">First item</li>
-            <li class="list-group-item">Second item</li>
-            <li class="list-group-item">Third item</li>
-            <li class="list-group-item">Fourth</li>
+            {% for var in variables %}
+                <li class="list-group-item variable" id="{{var.pk}}">
+                    <a href="{% url 'update_variable' var_pk=var.pk var_class_name=var|class_name_filter %}">{{ var }}</a>
+                </li>
+            {% empty %}
+                <p>No Variables assigned to you yet!</p>
+            {% endfor %}
         </ul>
 
     </div>
@@ -23,76 +28,67 @@
                 <h3>Indicator Variable Data Input</h3>
             </div>
             
-            <div class="input-data-entry-container">
+            <div class="input-data-entry-container" id="inputDataWorkArea">
+            {% if variable %}
            
-                    <div class="input-data-variable-name">
-                        <h5>Population: Upper East Region, Gh</h5>
+                <div class="input-data-variable-name">
+                    <h5>{{ variable }} {% if existing_value %} <strong>on</strong> {% endif %} {{ existing_value.period }}</h5>
+                </div>
+                
+                {% if messages %}
+                <div class="messages-container">
+                    {% for message in messages %}
+                    <div class="alert alert-{% if message.tags %}{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}{% else %}info{% endif %}" role="alert">
+                        {{ message }}
                     </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
-                    <div class="existing-data-container">
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
-                        <div class="existing-data-card m-1 text-center">
-                            <a href="" style="color: rgb(53, 56, 74);">
-                                <div class="existing-data-date">25/04/2023</div>
-                                <div class="existing-data-value">100.00</div>
-                            </a>
-                        </div>
+                <div class="existing-data-container">
+                    {% for value in variable.value_models.all %}
+                    <div class="existing-data-card m-1 text-center">                        
+                        <a href="{% url 'update_existing_value' var_class_name=value.variable|class_name_filter var_pk=value.variable.pk existing_value_pk=value.pk %}" style="color: rgb(53, 56, 74);">
+                            <div class="existing-data-date">{{value.period}}</div>
+                            <div class="existing-data-value">{{value.value}}</div>
+                        </a>
                     </div>
-        
-                    <div class="input-data-form-container">
-                        <form action="">
-                            <h5>Input new Value...</h5>
-                            <div class="data-input">
-                                <div class="data-input-variable-name">
-                                    <label for="var_value">Value</label> <br>
-                                    <input type="number" name="var_value" id="">    
-                                </div>
-                                <div class="data-input-date">
-                                    <label for="var_value_date">Date</label> <br>
-                                    <input type="date" name="var_value_date">
-                                </div>
-                            </div>
-                            <div class="data-input-submit-container">
-                                <button type="submit" class="btn btn-outline-primary">Save</button>
-                            </div>
-                        </form>
-                    </div>
+                    {% empty %}
+                        <p>No value for {{variable}} yet.</p>
+                    {% endfor %}
+                </div>
+    
+                <div class="input-data-form-container">
+                    <form method="post" action="">
+                        {% csrf_token %}
+                        
+                        {% if existing_value %}
+                        <h5>Updating entry of value {{ existing_value.value }} for {{ existing_value.period }}...</h5>
+                        {% else %}
+                        <h5>Input new Value...</h5>
+                        {% endif %}
 
+                        <div class="data-input">
+                            <div class="data-input-variable-name">
+                                <label for="var_value">Value</label> <br>
+                                <input type="number" name="var_value" value="{{ existing_value.value }}">    
+                            </div>
+                            <div class="data-input-date">
+                                <label for="var_value_date">Date</label> <br>
+                                <input type="date" name="var_value_date" value="{{ existing_value.normal_string_period }}">
+                            </div>
+                        </div>
+                        <div class="data-input-submit-container">
+                            <input type="hidden" name="existing_value_pk" value="{{existing_value.pk}}"></input>
+                            <input type="hidden" name="variable_pk" value="{{variable.pk}}"></input>
+                            <input type="hidden" name="variable_class" value="{{variable|class_name_filter}}"></input>
+                            <button type="submit" class="btn btn-outline-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            {% else %}
+                <p>Choose a variable to update!</p>         
+            {% endif %}
             </div>
             
         </div>

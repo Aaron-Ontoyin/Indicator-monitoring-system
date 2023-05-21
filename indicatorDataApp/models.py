@@ -1,12 +1,8 @@
 from django.db import models
-from django.db.models import Sum, Min, Max, Q
+from django.db.models import Min, Max, Q
 from statistics import mean, median
-from abc import ABC, abstractmethod
-import pycountry
 
 from dateutil.rrule import rrule, YEARLY
-from datetime import datetime
-
 
 
 # Choice Fiels
@@ -91,7 +87,7 @@ class District(models.Model):
 
 class Value(models.Model):
     """The actual value a Variable"""
-    period = models.DateField(auto_now_add=True)
+    period = models.DateField()
     inputted_value = models.DecimalField(decimal_places=2, max_digits=9, default=None)
 
     computing_funcs = {
@@ -100,6 +96,10 @@ class Value(models.Model):
         CalFormatChoice.MEAN: mean,
         CalFormatChoice.MEDIAN: median,
     }
+
+    @property
+    def normal_string_period(self):
+        return self.period.isoformat()
 
     # Not explicitely made abstract but they are abstract
     value_type = None    
@@ -326,6 +326,13 @@ class NationalIndicatorVariable(models.Model):
         least_var = all_vars_at_date.order_by('period').first()
         return least_var.value
 
+    def create_value(self, period, inputted_value):
+        return NationalVarValue.objects.create(
+            variable = self,
+            period = period,
+            inputted_value = inputted_value
+        )
+
     def __str__(self):
         return self.name
 
@@ -353,7 +360,7 @@ class RegionalIndicatorVariable(models.Model):
         least_var = all_vars_at_date.order_by('period').first()
         return least_var.value
 
-    def get_create_district_vars(self):
+    def create_district_vars(self):
         districts = District.objects.filter(
             region__country=self.national_var.indicator_var.country
         )
@@ -369,6 +376,14 @@ class RegionalIndicatorVariable(models.Model):
     
     def delete_district_vars(self):
         DistrictIndicatorVariable.objects.filter(regional_var=self).delete()
+
+    def create_value(self, period, inputted_value):
+        return RegionalVarValue.objects.create(
+            variable = self,
+            period = period,
+            inputted_value = inputted_value
+        )
+
 
     def __str__(self):
         return self.name
@@ -386,6 +401,13 @@ class DistrictIndicatorVariable(models.Model):
         all_vars_at_date = self.value_models.filter(pariod__gte=date)
         least_var = all_vars_at_date.order_by('period').first()
         return least_var.value
+
+    def create_value(self, period, inputted_value):
+        return RegionalVarValue.objects.create(
+            variable = self,
+            period = period,
+            inputted_value = inputted_value
+        )
 
     @property
     def values(self):
