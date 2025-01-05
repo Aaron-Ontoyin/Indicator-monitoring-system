@@ -116,6 +116,10 @@ class Value(models.Model):
         if self.value_type == ValueTypeChoice.INPUTTED:
             return self.inputted_value
         return self.computed_value()
+    
+    class Meta:
+        ordering = ['period']
+
 
 
 class NationalVarValue(Value):
@@ -139,6 +143,9 @@ class NationalVarValue(Value):
         
         return self.compute(all_values, self.variable.indicator_var.compute_format)
 
+    def __str__(self):
+        return self.variable.name + ' @ ' + self.period
+
 
 class RegionalVarValue(Value):
     """The value at a period for a regional variable"""
@@ -160,6 +167,9 @@ class RegionalVarValue(Value):
         all_values = district_var_values.value_list('value__value', flat=True) 
         
         return self.compute(all_values, self.variable.national_var.indicator_var.compute_format)
+    
+    def __str__(self):
+        return self.variable.name + ' @ ' + self.period
 
 
 class DistrictVarValue(Value):
@@ -175,6 +185,9 @@ class DistrictVarValue(Value):
     @property
     def value_type(self):
         return self.variable.regional_var.national_var.indicator_var.value_type
+
+    def __str__(self):
+        return self.variable.name + ' @ ' + self.period.isoformat()
 
 
 class IndicatorVariable(models.Model):
@@ -224,10 +237,10 @@ class IndicatorVariable(models.Model):
         if target.isinstance(Region):
             # Get all district vars in target region
             return self.get_all_district_vars().filter(district__region=target)
-        
+
         if target.isinstance(District):
             return self.get_all_district_vars().get(district=target)
-        
+
         raise ValueError("Target must be a Region or District")
 
     def get_create_national_var(self):
@@ -427,6 +440,8 @@ class IndicatorValue(models.Model):
     #         indicator=indicator
     #     )
 
+    class Meta:
+        ordering = ['period']
 
 class Indicator(models.Model):
     """The base Item in this project is the indicator"""
